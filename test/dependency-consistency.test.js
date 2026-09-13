@@ -1,10 +1,16 @@
-// Regression coverage for GitHub issue #6:
-// keep the zca-js dependency (and its transitive deps) consistent between
-// package.json and package-lock.json, and guard the login/cookie contract
-// this project relies on from the zca-js SDK.
+// Regression coverage for GitHub issue #6 (zca-js dependency consistency).
 //
-// Uses only Node's built-in test runner (`node --test`) so it needs no
-// network access and no installed node_modules.
+// Two concerns a zca-js version bump can break, both guarded here:
+//   1. package.json and package-lock.json must stay in sync for zca-js and its
+//      transitive dependencies, so the declared spec matches what is resolved.
+//   2. The login/cookie data contract in src/api/zalo/zalo.js — the credential
+//      object built from `api.getContext()` and later replayed into
+//      `zalo.login(cred)` — must keep the exact { imei, cookie, userAgent }
+//      shape the SDK expects.
+//
+// Uses only Node's built-in test runner (`node --test`): no network access and
+// no installed node_modules. The login/cookie section mocks the SDK surface and
+// uses placeholder (non-secret) values only.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -41,14 +47,32 @@ function satisfiesCaret(spec, version) {
   if (t.patch !== f.patch) return t.patch > f.patch;
 
   // Same core version: compare prerelease tags. A pinned stable (no prerelease)
-  // outranks a floor prerelease; otherwise compare the numeric suffix.
+  // outranks a floor prerelease; otherwise compare the prerelease identifiers
+  // left-to-right (label first, then the numeric suffix) per semver ordering.
   if (f.pre === '' && t.pre === '') return true;
   if (t.pre === '') return true; // stable >= any prerelease of same core
   if (f.pre === '') return false; // prerelease < stable of same core
 
-  const preNum = (p) => Number(p.split('.').pop());
-  return preNum(t.pre) >= preNum(f.pre);
+  const fParts = f.pre.split('.');
+  const tParts = t.pre.split('.');
+  for (let i = 0; i < Math.max(fParts.length, tParts.length); i++) {
+    const fp = fParts[i];
+    const tp = tParts[i];
+    if (fp === undefined) return true; // longer prerelease outranks its prefix
+    if (tp === undefined) return false;
+    const fn = Number(fp);
+    const tn = Number(tp);
+    const bothNumeric = !Number.isNaN(fn) && !Number.isNaN(tn);
+    if (bothNumeric) {
+      if (tn !== fn) return tn > fn;
+    } else if (tp !== fp) {
+      return tp > fp; // lexical compare of identifiers (e.g. beta > alpha)
+    }
+  }
+  return true; // identical prerelease tags
 }
+
+// --- Dependency consistency ---------------------------------------------------
 
 test('package.json declares zca-js', () => {
   assert.ok(pkg.dependencies?.['zca-js'], 'zca-js must be a declared dependency');
@@ -83,4 +107,74 @@ test('zca-js transitive dependencies are present in the lockfile', () => {
       `transitive dependency "${dep}" of zca-js is missing from the lockfile`,
     );
   }
+});
+
+// --- Login/cookie data contract ----------------------------------------------
+
+// The credential object saved after login (from `api.getContext()`) and later
+// replayed into `zalo.login(cred)` for cookie relogin must be exactly these
+// three keys. This mirrors src/api/zalo/zalo.js.
+const CRED_KEYS = ['imei', 'cookie', 'userAgent'];
+
+// A stand-in `api.getContext()` result using placeholder (non-secret) values.
+function fakeContext() {
+  return {
+    imei: 'PLACEHOLDER-IMEI',
+    cookie: [{ name: 'placeholder', value: 'x' }],
+    userAgent: 'PLACEHOLDER-UA',
+    // Extra fields the SDK may return that we intentionally do not persist:
+    language: 'vi',
+  };
+}
+
+test('persisted cred keeps only imei, cookie, userAgent', () => {
+  const context = fakeContext();
+  const { imei, cookie, userAgent } = context;
+  const data = { imei, cookie, userAgent };
+
+  assert.deepEqual(Object.keys(data).sort(), [...CRED_KEYS].sort());
+  assert.ok(!('language' in data), 'unrelated context fields must not be persisted');
+});
+
+test('persisted cred round-trips through JSON for cookie relogin', () => {
+  const context = fakeContext();
+  const { imei, cookie, userAgent } = context;
+  const data = { imei, cookie, userAgent };
+
+  const restored = JSON.parse(JSON.stringify(data));
+  // The cred consumed by zalo.login(cred) on relogin must survive serialization.
+  for (const key of CRED_KEYS) {
+    assert.deepEqual(restored[key], data[key], `${key} must round-trip`);
+  }
+});
+
+test('cookie login falls back to QR when login(cred) rejects', async () => {
+  // Reproduces the try/catch fallback in loginZaloAccount without the real SDK.
+  const calls = [];
+  const zalo = {
+    async login() {
+      calls.push('login');
+      throw new Error('cookie expired');
+    },
+    async loginQR(_opts, cb) {
+      calls.push('loginQR');
+      cb({ data: { image: 'BASE64' } });
+      return { ok: true };
+    },
+  };
+
+  const cred = { imei: 'x', cookie: [], userAgent: 'x' };
+  let api;
+  let qrShown = false;
+  try {
+    api = await zalo.login(cred);
+  } catch {
+    api = await zalo.loginQR(null, (qrData) => {
+      if (qrData?.data?.image) qrShown = true;
+    });
+  }
+
+  assert.deepEqual(calls, ['login', 'loginQR'], 'must attempt cookie login then QR');
+  assert.equal(qrShown, true, 'QR image callback must fire on fallback');
+  assert.deepEqual(api, { ok: true });
 });

@@ -5,7 +5,7 @@
   "scripts": {
     "start": "node src/server.js",
     "migrate-structure": "node scripts/migrate-structure.js",
-    "test": "node --test test/"
+    "test": "node --test \"test/**/*.test.js\""
   },
   "dependencies": {
     "axios": "^1.8.3",
