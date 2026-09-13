@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "start": "node src/server.js",
-    "migrate-structure": "node scripts/migrate-structure.js"
+    "migrate-structure": "node scripts/migrate-structure.js",
+    "test": "node --test --test-concurrency=1 \"test/**/*.test.js\""
   },
   "dependencies": {
     "axios": "^1.8.3",
@@ -18,6 +19,6 @@
     "qrcode": "^1.5.4",
     "sharp": "^0.33.5",
     "ws": "^8.18.1",
-    "zca-js": "^2.0.0-beta.20"
+    "zca-js": "^2.2.0"
   }
 }
