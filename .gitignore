@@ -40,5 +40,7 @@ jspm_packages/
 *.idea/
 *.vscode/
 
-cred*
+# Zalo credential dumps (real cookies/imei/userAgent) — never commit these.
+# Scoped to the JSON files so source like src/utils/credentialStore.js is tracked.
+cred_*.json
 .qodo

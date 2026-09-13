@@ -5,7 +5,23 @@ import { setupEventListeners } from '../../eventListeners.js';
 import { HttpsProxyAgent } from "https-proxy-agent";
 import nodefetch from "node-fetch";
 import fs from 'fs';
+import sharp from 'sharp';
 import { saveImage, removeImage } from '../../utils/helpers.js';
+import { saveCredentials } from '../../utils/credentialStore.js';
+
+/**
+ * zca-js 2.x yêu cầu ứng dụng cung cấp metadata cho upload ảnh/GIF từ file.
+ * Dùng chung cho mọi instance Zalo, có hoặc không qua proxy.
+ */
+async function imageMetadataGetter(filePath) {
+    const data = await fs.promises.readFile(filePath);
+    const metadata = await sharp(data).metadata();
+    return {
+        height: metadata.height,
+        width: metadata.width,
+        size: metadata.size || data.length,
+    };
+}
 
 export const zaloAccounts = [];
 
@@ -900,10 +916,12 @@ export async function loginZaloAccount(customProxy, cred) {
                 agent: agent,
                 // @ts-ignore
                 polyfill: nodefetch,
+                imageMetadataGetter,
             });
         } else {
             console.log('Khởi tạo Zalo SDK không có proxy');
             zalo = new Zalo({
+                imageMetadataGetter,
             });
         }
 
@@ -986,30 +1004,17 @@ export async function loginZaloAccount(customProxy, cred) {
 
             console.log('Đang lưu cookie...');
             const context = await api.getContext();
-            const {imei, cookie, userAgent} = context;
-            const data = {
-                imei: imei,
-                cookie: cookie,
-                userAgent: userAgent,
+            const { imei, cookie, userAgent } = context;
+            // Luôn ghi đè credential mới (kể cả khi file cũ đã tồn tại) bằng thao
+            // tác ghi nguyên tử có await. Đây là bản sửa cho issue #7: trước đây
+            // credential mới sau khi đăng nhập lại bằng QR bị bỏ qua vì file cũ
+            // vẫn còn, khiến lần khởi động sau lại nạp cookie hỏng và bắt quét QR.
+            // Lỗi ghi không làm hỏng phiên đăng nhập đang hoạt động.
+            try {
+                await saveCredentials(ownId, { imei, cookie, userAgent });
+            } catch (saveError) {
+                console.error(`Không thể lưu credential cho tài khoản ${ownId}, phiên vẫn tiếp tục:`, saveError.message);
             }
-            const cookiesDir = './data/cookies';
-            if (!fs.existsSync(cookiesDir)) {
-                fs.mkdirSync(cookiesDir, { recursive: true });
-                console.log('Đã tạo thư mục cookies');
-            }
-            fs.access(`${cookiesDir}/cred_${ownId}.json`, fs.constants.F_OK, (err) => {
-                if (err) {
-                    fs.writeFile(`${cookiesDir}/cred_${ownId}.json`, JSON.stringify(data, null, 4), (err) => {
-                        if (err) {
-                            console.error('Lỗi khi ghi file cookie:', err);
-                        } else {
-                            console.log(`Đã lưu cookie vào file cred_${ownId}.json`);
-                        }
-                    });
-                } else {
-                    console.log(`File cred_${ownId}.json đã tồn tại, không ghi đè`);
-                }
-            });
 
             console.log(`Đã đăng nhập vào tài khoản ${ownId} (${displayName}) với số điện thoại ${phoneNumber} qua proxy ${useCustomProxy ? customProxy : (proxyUsed?.url || 'không có proxy')}`);
         } catch (error) {
