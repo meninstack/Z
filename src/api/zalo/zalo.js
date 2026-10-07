@@ -78,6 +78,7 @@ export async function getAccountDetails(req, res) {
 // Các API này sử dụng account selection thay vì ownId
 
 // Middleware để xử lý account selection
+// Trả về object account trực tiếp: { api, ownId, proxy, phoneNumber, displayName }
 function getAccountFromSelection(accountSelection) {
     if (!accountSelection) {
         throw new Error('Vui lòng chọn tài khoản');
