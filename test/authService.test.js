@@ -86,3 +86,28 @@ test('khong con log mat khau trong source', async () => {
   assert.ok(!src.includes('Full generated hash'), 'khong duoc log "Full generated hash"');
   assert.ok(!src.includes('Full user'), 'khong duoc log "Full user"');
 });
+
+test('migration: hash cu 1000 iterations duoc rehash tu dong khi login', async () => {
+    // Tao user "legacy" voi hash tao tu 1000 iterations
+    const crypto = (await import('node:crypto')).default;
+    const salt = crypto.randomBytes(16).toString('hex');
+    const oldHash = crypto.pbkdf2Sync('pass123', salt, 1000, 64, 'sha512').toString('hex');
+
+    const usersRaw = JSON.parse(fs.readFileSync(usersFile, 'utf8'));
+    usersRaw.push({ username: 'legacy', salt, hash: oldHash, role: 'user' });
+    fs.writeFileSync(usersFile, JSON.stringify(usersRaw, null, 2));
+
+    // Login bang pass123 -> phai thanh cong va rehash
+    const user = validateUser('legacy', 'pass123');
+    assert.ok(user, 'validateUser phai thanh cong cho legacy user');
+
+    // Kiem tra hash trong file da duoc cap nhat len 210000
+    const updated = JSON.parse(fs.readFileSync(usersFile, 'utf8'));
+    const legacyUser = updated.find(u => u.username === 'legacy');
+    const expectedNewHash = crypto.pbkdf2Sync('pass123', salt, 210000, 64, 'sha512').toString('hex');
+    assert.equal(legacyUser.hash, expectedNewHash, 'hash phai duoc rehash len 210000');
+
+    // Login lai thi dung truc tiep hash moi, khong can migration
+    const user2 = validateUser('legacy', 'pass123');
+    assert.ok(user2, 'validateUser lan 2 phai thanh cong');
+});

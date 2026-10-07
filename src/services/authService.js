@@ -200,10 +200,22 @@ export const validateUser = (username, password) => {
 
       
     
-  const hash = hashPassword(password, user.salt);
-
-  if (user.hash === hash) {
+  // Thu dung HASH_ITERATIONS moi truoc
+  const newHash = hashPassword(password, user.salt);
+  if (user.hash === newHash) {
     console.log('Authentication successful');
+    return {
+      username: user.username,
+      role: user.role || 'user'
+    };
+  }
+
+  // Migration: neu hash cu (1000 iterations) khop, rehash voi HASH_ITERATIONS moi
+  const legacyHash = crypto.pbkdf2Sync(password, user.salt, 1000, HASH_KEY_LENGTH, HASH_DIGEST).toString('hex');
+  if (user.hash === legacyHash) {
+    console.log(`[Migration] Re-hash password cho ${username} tu 1000 -> ${HASH_ITERATIONS} iterations`);
+    user.hash = newHash;
+    saveUsers(users);
     return {
       username: user.username,
       role: user.role || 'user'
