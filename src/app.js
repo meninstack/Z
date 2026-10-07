@@ -11,7 +11,8 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import env, { logConfig } from './config/env.js';
 import { SESSION_MAX_AGE } from './config/constants.js';
-import { initLoginFromCookies, zaloAccounts } from './api/zalo/zalo.js';
+import { zaloAccounts } from './api/zalo/zalo.js';
+import { initLoginFromCookies } from './utils/initLoginFromCookies.js';
 
 // Dành cho ES Module: xác định __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -61,7 +62,7 @@ console.log('Static files path:', path.join(__dirname, 'public'));
 
 // Thiết lập session với cấu hình rõ ràng hơn
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'zalo-server-secret-key',
+  secret: env.SESSION_SECRET,
   resave: false, // Chỉ lưu session khi có thay đổi
   saveUninitialized: false, // Chỉ lưu session khi đã đăng nhập
   name: 'zalo-server.sid', // Tên cookie cụ thể
@@ -111,7 +112,6 @@ app.get('/health', (req, res) => {
 });
 
 
-// Đăng nhập lại từ cookie đã lưu
 initLoginFromCookies().catch(err => {
     console.error('Lỗi khi khởi tạo đăng nhập từ cookie:', err);
 });

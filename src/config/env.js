@@ -16,6 +16,7 @@ const env = {
   // Bảo mật
   API_KEY: process.env.API_KEY || '',
   ADMIN_DEFAULT_PASSWORD: process.env.ADMIN_DEFAULT_PASSWORD || 'admin',
+  SESSION_SECRET: process.env.SESSION_SECRET || 'zalo-server-secret-key',
 
   // Webhook
   ERROR_WEBHOOK_URL: process.env.ERROR_WEBHOOK_URL || '',
@@ -53,6 +54,7 @@ export function logConfig() {
   console.log(`NODE_ENV: ${env.NODE_ENV}`);
   console.log(`DATA_PATH: ${env.DATA_PATH}`);
   console.log(`API_KEY: ${env.API_KEY ? '***set***' : 'empty'}`);
+  console.log(`SESSION_SECRET: ${env.SESSION_SECRET ? '***set***' : 'default'}`);
   console.log(`ADMIN_DEFAULT_PASSWORD: ${env.ADMIN_DEFAULT_PASSWORD !== 'admin' ? '***set***' : 'default'}`);
   console.log(`MAX_ACCOUNTS_PER_PROXY: ${env.MAX_ACCOUNTS_PER_PROXY}`);
   console.log(`MESSAGE_WEBHOOK_URL: ${env.MESSAGE_WEBHOOK_URL ? '***set***' : 'empty'}`);
