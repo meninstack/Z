@@ -9,7 +9,9 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import { zaloAccounts, loginZaloAccount } from './api/zalo/zalo.js';
+import env, { logConfig } from './config/env.js';
+import { SESSION_MAX_AGE } from './config/constants.js';
+import { initLoginFromCookies, zaloAccounts } from './api/zalo/zalo.js';
 
 // Dành cho ES Module: xác định __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -17,6 +19,7 @@ const __dirname = path.dirname(__filename);
 
 // Load environment variables from .env file
 dotenv.config({ path: path.join(__dirname, 'config', '.env') });
+logConfig();
 
 const app = express();
 
@@ -55,19 +58,17 @@ app.use(express.static(path.join(__dirname, 'public')));
 console.log('Static files path:', path.join(__dirname, 'public'));
 
 // Định nghĩa SESSION_SECRET từ biến môi trường hoặc mặc định
-const sessionSecret = process.env.SESSION_SECRET || 'zalo-server-secret-key';
-console.log("Using session secret:", sessionSecret ? "Configured properly" : "MISSING SESSION SECRET");
 
 // Thiết lập session với cấu hình rõ ràng hơn
 app.use(session({
-  secret: sessionSecret,
-  resave: true, // Thay đổi thành true để đảm bảo session được lưu lại sau mỗi request
-  saveUninitialized: true, // Thay đổi thành true để đảm bảo session được lưu ngay cả khi chưa có dữ liệu
+  secret: process.env.SESSION_SECRET || 'zalo-server-secret-key',
+  resave: false, // Chỉ lưu session khi có thay đổi
+  saveUninitialized: false, // Chỉ lưu session khi đã đăng nhập
   name: 'zalo-server.sid', // Tên cookie cụ thể
   cookie: {
     secure: false, // false để hoạt động với HTTP
     httpOnly: true, // Chỉ truy cập được qua HTTP, không qua JS
-    maxAge: 24 * 60 * 60 * 1000, // 24 giờ
+    maxAge: SESSION_MAX_AGE, // 24 giờ
     path: '/',
     sameSite: 'lax' // Thêm cấu hình sameSite để tránh vấn đề với cross-site
   },
@@ -77,7 +78,6 @@ app.use(session({
 // Log để debug session
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
-  console.log('Session exists:', !!req.session);
   next();
 });
 
@@ -97,47 +97,35 @@ app.use((req, res, next) => {
 // Thiết lập route
 app.use('/', routes);
 
-// Login từ cookie đã lưu
-const cookiesDir = './data/cookies';
-if (fs.existsSync(cookiesDir)) {
-    try {
-        const cookieFiles = fs.readdirSync(cookiesDir);
-        if (zaloAccounts.length < cookieFiles.length) {
-            console.log('Số lượng tài khoản Zalo nhỏ hơn số lượng cookie files. Đang đăng nhập lại từ cookie...');
-
-            // Sử dụng IIFE để tránh top-level await
-            (async function() {
-                for (const file of cookieFiles) {
-                    if (file.startsWith('cred_') && file.endsWith('.json')) {
-                        const ownId = file.substring(5, file.length - 5, file.length);
-                        try {
-                            const cookiePath = `${cookiesDir}/${file}`;
-                            if (fs.existsSync(cookiePath)) {
-                                const cookie = JSON.parse(fs.readFileSync(cookiePath, "utf-8"));
-                                try {
-                                    await loginZaloAccount(null, cookie);
-                                    console.log(`Đã đăng nhập lại tài khoản ${ownId} từ cookie.`);
-                                } catch (loginError) {
-                                    console.error(`Lỗi khi đăng nhập lại tài khoản ${ownId} từ cookie:`, loginError);
-                                }
-                            } else {
-                                console.log(`Không tìm thấy file cookie: ${cookiePath}`);
-                            }
-                        } catch (error) {
-                            console.error(`Lỗi khi đọc/xử lý cookie cho tài khoản ${ownId}:`, error);
-                        }
-                    }
-                }
-            })().catch(err => {
-                console.error('Lỗi khi xử lý đăng nhập từ cookie:', err);
-            });
-        }
-    } catch (dirError) {
-        console.error(`Lỗi khi đọc thư mục cookies:`, dirError);
+// Health check endpoint (public)
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    accounts: {
+      total: zaloAccounts.length,
+      online: zaloAccounts.filter(a => a.listener && a.listener.isStarted).length
     }
-} else {
-    console.log(`Thư mục cookies không tồn tại: ${cookiesDir}`);
-    fs.mkdirSync(cookiesDir, { recursive: true });
-}
+  });
+});
+
+
+// Đăng nhập lại từ cookie đã lưu
+initLoginFromCookies().catch(err => {
+    console.error('Lỗi khi khởi tạo đăng nhập từ cookie:', err);
+});
+
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ success: false, error: 'Not found' });
+});
+
+// 500 handler
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  res.status(500).json({ success: false, error: 'Internal server error' });
+});
 
 export default app;
