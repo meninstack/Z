@@ -32,8 +32,8 @@ test('SESSION_MAX_AGE = 24 gio', () => {
     assert.equal(SESSION_MAX_AGE, 24 * 60 * 60 * 1000);
 });
 
-test('PBKDF2 iter = 1000 (giong ban goc)', () => {
-  assert.equal(HASH_ITERATIONS, 1000);
-  assert.equal(HASH_KEY_LENGTH, 64);
-  assert.equal(HASH_DIGEST, 'sha512');
+test('PBKDF2 iter cao hon muc toi thieu 210000', () => {
+    assert.ok(HASH_ITERATIONS >= 210000, `HASH_ITERATIONS=${HASH_ITERATIONS} phai >= 210000`);
+    assert.equal(HASH_KEY_LENGTH, 64);
+    assert.equal(HASH_DIGEST, 'sha512');
 });

@@ -4,7 +4,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import env from '../config/env.js';
-import { HASH_ITERATIONS, HASH_KEY_LENGTH, HASH_DIGEST } from '../config/constants.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,7 +13,7 @@ const userFilePath = env.USERS_FILE;
 
 // Hàm tạo salt + hash mật khẩu dùng chung
 const hashPassword = (password, salt) => {
-  return crypto.pbkdf2Sync(password, salt, HASH_ITERATIONS, HASH_KEY_LENGTH, HASH_DIGEST).toString('hex');
+  return crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
 };
 
 // Sao lưu file users.json hỏng trước khi tạo lại

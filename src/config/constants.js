@@ -10,6 +10,6 @@ export const RETRY_RESET_TIME = 30 * 60 * 1000; // 30 minutes
 export const SESSION_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
 // Password hashing settings
-export const HASH_ITERATIONS = 1000;
+export const HASH_ITERATIONS = 210000;
 export const HASH_KEY_LENGTH = 64;
 export const HASH_DIGEST = 'sha512';

@@ -3,8 +3,6 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
-import env from '../config/env.js';
-import { HASH_ITERATIONS, HASH_KEY_LENGTH, HASH_DIGEST } from '../config/constants.js';
 import {
     findUser,
     getUserInfo,
@@ -581,7 +579,7 @@ router.get('/debug-webhook-config', (req, res) => {
 // Endpoint debug để kiểm tra file users.json
 router.get('/debug-users-file', (req, res) => {
     try {
-        const userFilePath = env.USERS_FILE;
+        const userFilePath = path.join(process.cwd(), 'data', 'cookies', 'users.json');
         const fileExists = fs.existsSync(userFilePath);
         let fileContent = null;
         let users = [];
@@ -627,7 +625,7 @@ router.get('/debug-users-file', (req, res) => {
 // Endpoint để reset mật khẩu về mặc định (hỗ trợ cả GET và POST)
 router.all('/reset-admin-password', (req, res) => {
     try {
-        const userFilePath = env.USERS_FILE;
+        const userFilePath = path.join(process.cwd(), 'data', 'cookies', 'users.json');
         const fileExists = fs.existsSync(userFilePath);
 
         if (!fileExists) {
@@ -660,9 +658,9 @@ router.all('/reset-admin-password', (req, res) => {
         }
 
         // Tạo mật khẩu mặc định mới
-        const defaultPassword = env.ADMIN_DEFAULT_PASSWORD;
+        const defaultPassword = 'admin';
         const salt = crypto.randomBytes(16).toString('hex');
-        const hash = crypto.pbkdf2Sync(defaultPassword, salt, HASH_ITERATIONS, HASH_KEY_LENGTH, HASH_DIGEST).toString('hex');
+        const hash = crypto.pbkdf2Sync(defaultPassword, salt, 1000, 64, 'sha512').toString('hex');
 
         // Cập nhật user admin
         users[adminIndex].salt = salt;
@@ -671,7 +669,7 @@ router.all('/reset-admin-password', (req, res) => {
         // Ghi lại file
         try {
             // Tạo file tạm thời
-            const tempFilePath = `${env.USERS_FILE}.tmp`;
+            const tempFilePath = path.join(process.cwd(), 'data', 'cookies', 'users.json.tmp');
             fs.writeFileSync(tempFilePath, JSON.stringify(users, null, 2), { encoding: 'utf8', flag: 'w' });
 
             // Di chuyển file tạm thời thành file chính thức
@@ -679,7 +677,7 @@ router.all('/reset-admin-password', (req, res) => {
 
             return res.json({
                 success: true,
-                message: `Đã reset mật khẩu admin về mặc định (${env.ADMIN_DEFAULT_PASSWORD})`
+                message: 'Đã reset mật khẩu admin về mặc định (admin)'
             });
         } catch (writeError) {
             return res.status(500).json({
