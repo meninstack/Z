@@ -1,0 +1,15 @@
+version: "3.3"
+services:
+  zalo-server:
+    image: cangphamdocker/zalo-server:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./zalo_data:/app/data
+    environment:
+      - PORT=3000
+      - MESSAGE_WEBHOOK_URL=${MESSAGE_WEBHOOK_URL}
+      - GROUP_EVENT_WEBHOOK_URL=${GROUP_EVENT_WEBHOOK_URL}
+      - REACTION_WEBHOOK_URL=${REACTION_WEBHOOK_URL}
+    restart: always
+    working_dir: /app

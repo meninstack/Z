@@ -1,15 +1,34 @@
 version: "3.3"
+
 services:
   zalo-server:
-    image: cangphamdocker/zalo-server:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
-      - "3000:3000"
-    volumes:
-      - ./zalo_data:/app/data
+      - "${HOST_PORT:-5050}:${PORT:-3000}"
     environment:
       - PORT=3000
+      - DATA_PATH=/app/data
+      - SESSION_SECRET=${SESSION_SECRET:-change-me-in-production}
       - MESSAGE_WEBHOOK_URL=${MESSAGE_WEBHOOK_URL}
       - GROUP_EVENT_WEBHOOK_URL=${GROUP_EVENT_WEBHOOK_URL}
       - REACTION_WEBHOOK_URL=${REACTION_WEBHOOK_URL}
+    volumes:
+      - app-data:/app/data
     restart: always
-    working_dir: /app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+volumes:
+  app-data:
+    driver: local
