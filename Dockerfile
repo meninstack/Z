@@ -1,23 +1,33 @@
-FROM cangphamdocker/zalo-server:latest
+FROM node:20-slim
 
-# Set work directory
+# Cài curl + netcat cho healthcheck và entrypoint
+RUN apt-get update && apt-get install -y curl netcat-openbsd && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-# Copy package.json and package-lock.json (if exists)
+# Copy package.json + lockfile để cache dependency layer
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install
+# Cài dependencies (production only)
+RUN npm ci --only=production
 
-# Sao chép toàn bộ thư mục src vào thư mục gốc của container
-COPY src/ /app/
+# Copy source code
+COPY src/ /app/src/
+COPY scripts/ /app/scripts/
+COPY package.json /app/
 
-# Tạo các thư mục dữ liệu cần thiết
+# Tạo thư mục data
 RUN mkdir -p /app/data/cookies
 
-# Đảm bảo quyền và làm sạch bộ nhớ cache
-RUN npm cache clean --force
+# Entrypoint + healthcheck
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-# Mở cổng và định nghĩa điểm vào (entrypoint)
+VOLUME ["/app/data"]
 EXPOSE 3000
-CMD ["node", "server.js"]
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD curl -f http://localhost:3000/health || exit 1
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["npm", "start"]

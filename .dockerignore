@@ -4,4 +4,8 @@ zalo_data
 .git
 .gitignore
 .env
-*.md 
+*.md
+data/
+cred_*.json
+test/
+docker-compose*.yaml
