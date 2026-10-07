@@ -298,6 +298,7 @@ export const getAllUsers = () => {
 
 // Danh sách các route công khai (không cần xác thực)
 export const publicRoutes = [
+  '/health', // Health check endpoint
   '/', // Trang chủ hiển thị nút đăng nhập
   '/admin-login', // Trang đăng nhập
   '/session-test', // Trang kiểm tra session
