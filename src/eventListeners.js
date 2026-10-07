@@ -1,4 +1,4 @@
-import { GroupEventType, ThreadType } from "zca-js";
+import { GroupEventType } from "zca-js";
 import { getWebhookUrl, triggerN8nWebhook } from './utils/helpers.js';
 import fs from 'fs';
 import { loginZaloAccount, zaloAccounts } from './api/zalo/zalo.js';
@@ -51,17 +51,10 @@ export function setupEventListeners(api, loginResolve) {
     api.listener.on("message", async (msg) => {
         const messageWebhookUrl = getWebhookUrl("messageWebhookUrl", ownId);
         if (messageWebhookUrl) {
-            // Phân biệt group/personal dựa trên msg.type
-            const isGroupMessage = msg.type === ThreadType.Group;
-            const payload = {
-                ...msg,
-                _accountId: ownId,
-                _messageType: msg.isSelf ? 'self' : 'user',
-                _isGroup: isGroupMessage,
-                _chatType: isGroupMessage ? 'group' : 'personal',
-            };
+            // Thêm ownId vào dữ liệu để webhook biết tin nhắn từ tài khoản nào
+            const msgWithOwnId = { ...msg, _accountId: ownId };
             try {
-                await triggerN8nWebhook(payload, messageWebhookUrl);
+                await triggerN8nWebhook(msgWithOwnId, messageWebhookUrl);
             } catch (error) {
                 console.error(`[Webhook] Lỗi khi gửi message webhook:`, error);
             }
